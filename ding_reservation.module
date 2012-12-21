@@ -159,6 +159,14 @@ function ding_reservation_reserve_form($form, &$form_state, $reservable, $hide_o
 function ding_reservation_reserve_form_validate($form, &$form_state) {
   global $user;
   if (ding_provider_implements('reservation', 'options_validate')) {
+  
+    if (isset($form_state['values']['provider_options']['reserve_id'])) {
+      $entity = ding_entity_load($form_state['values']['provider_options']['reserve_id']);
+      $reservable = new DingReservationReservableEntity($entity);
+      
+      $form_state['values']['reservable'] = $reservable;
+    }
+  
     $res = ding_provider_invoke('reservation', 'options_validate', 'create', $user, $form_state['values']['reservable'], $form_state['values']['provider_options']);
     /**
      * We cannot set the value of the individual provider form elements, as
@@ -193,25 +201,39 @@ function ding_reservation_reserve_form_validate($form, &$form_state) {
  */
 function ding_reservation_reserve_form_submit($form, &$form_state) {
   global $user;
+  
+  if (isset($form_state['values']['provider_options']['reserve_id'])) {
+    $entity = ding_entity_load($form_state['values']['provider_options']['reserve_id']);
+    $reservable = new DingReservationReservableEntity($entity);
+    
+    $form_state['values']['reservable'] = $reservable;
+  }
+    
+    
   if (ding_provider_implements('reservation', 'options_submit')) {
     ding_provider_invoke('reservation', 'options_submit', 'create', $user, $form_state['values']['reservable'], $form_state['values']['provider_options']);
   }
   if ($form_state['values']['reservable']) {
     $reservable = $form_state['values']['reservable'];
     try {
-      $reservation_result = ding_provider_invoke('reservation', 'create', $user, $reservable->getProviderId(), $form_state['values']['provider_options']);
+      $expiry = REQUEST_TIME;
+      $expiry += ($form_state['values']['provider_options']['alma_interest_period']  * 24 * 60 * 60);
+      
+      $reservation_result = ding_provider_invoke('reservation', 'create', $user, $reservable->getProviderId(), $form_state['values']['provider_options']['alma_preferred_branch'], $expiry);
       $form_state['reserved'] = TRUE;
       // @todo use profile
       if (!empty($reservation_result['branch']) && ding_provider_implements('reservation', 'branch_name')) {
         $branch_name = ding_provider_invoke('reservation', 'branch_name', $reservation_result['branch']);
         drupal_set_message(t('"@title" reserved and will be available for pickup at @branch.', array('@title' => $reservable->getTitle(), '@branch' => $branch_name)));
+        drupal_set_message(l(t('Reservations list'), 'user/' . $user->uid . '/status/reservations'));
       }
       else {
-        drupal_set_message(t('"@title" reserved.', array('@title' => $reservable->getProviderId())));
+        drupal_set_message(t('"@title" reserved.', array('@title' => $reservable->getTitle())));
       }
 
       if (is_array($reservation_result) and !empty($reservation_result['queue_number'])) {
         drupal_set_message(t('You are number @number in queue.', array('@number' => $reservation_result['queue_number'])));
+        drupal_set_message(l(t('Reservations list'), 'user/' . $user->uid . '/status/reservations', array('fragment' => 'reserved_list-not_ready')));
       }
     }
     catch (DingProviderUserException $e) {
@@ -277,6 +299,7 @@ function ding_reservation_reservations_form($form, &$form_state, $items = array(
       uasort($items, 'ding_reservation_sort_queue_by_queue_number');
     break;
   }
+  
   foreach ($items as $id => $item) {
     $entity = $item->entity;
     $pickup_branch = ding_provider_invoke('reservation', 'branch_name', $item->pickup_branch_id);
@@ -574,10 +597,8 @@ function ding_reservation_default_options_branch($type, $name, $default, $option
     '#options' => $allowed_branches,
     '#default_value' => $default_value,
   );
-  if ($create) {
-    $form[$name . 'description'] = array(
-      '#markup' => '<p>' . t('In order to make quick reservations, you must select a default pickup branch.') . '</p>',
-    );
+  if ($create && !$default) {
+    $form[$name]['#description'] = t('In order to make quick reservations, you must select a default pickup branch.');
   }
   return $form;
 }
@@ -599,9 +620,9 @@ function ding_reservation_interest_period_selector($type, $name, $default, $opti
     '#default_value' => $default,
   );
   if ($create) {
-    $form[$name . 'description'] = array(
-      '#markup' => '<p>' . t('Select an interest period.') . '</p>',
-    );
+    // $form[$name . 'description'] = array(
+      // '#markup' => '<p>' . t('Select an interest period.') . '</p>',
+    // );
   }
   return $form;
 }
