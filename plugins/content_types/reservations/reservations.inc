@@ -58,6 +58,7 @@ function ding_reservation_reservations_content_type_render($subtype, $conf, $pan
     ding_entity_load_multiple($preload_ids);
     $preload_reservations = FALSE;
   }
+  
   $block->content = count($reservation_list) == TRUE ? ding_provider_get_form($form_id, $reservation_list, $conf['reservation_type_list']) : $no_reservation_text;
   return $block;
 }
