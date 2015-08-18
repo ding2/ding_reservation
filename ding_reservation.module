@@ -485,11 +485,33 @@ function ding_reservation_reservations_form($form, &$form_state, $reservations, 
       $title = l($entity->getTitle(), $uri['path']);
     }
 
+    // Add creator(s).
+    $creators = $entity->creators;
+    if(!is_array($creators)){
+      $creators = array($creators);
+    }
+
+    $creator_string = '';
+    if(!empty($creators)) {
+      foreach ($creators as $creator) {
+        if (!empty($creator_string)) {
+          $creator_string .= ', ';
+        }
+        $creator_string .= $creator;
+      }
+      $creator_string .= ' :';
+    }
+
+    // Add type.
+    $mat_type = $entity->type;
+
     $pickup_branch = ding_provider_invoke('reservation', 'branch_name', $reservation->pickup_branch_id);
     switch ($reservation->reservation_type) {
       case DING_RESERVATION_READY:
         $item = array(
           '#type' => 'material_item',
+          '#creators' => $creator_string,
+          '#material_type' => $mat_type,
           '#id' => $reservation->id,
           '#title' => $title,
           '#cover' => field_view_field('ting_object', $entity, 'ting_cover', 'user_list'),
@@ -525,6 +547,8 @@ function ding_reservation_reservations_form($form, &$form_state, $reservations, 
       case DING_RESERVATION_NOT_READY:
         $item = array(
           '#type' => 'material_item',
+          '#creators' => $creator_string,
+          '#material_type' => $mat_type,
           '#id' => $reservation->id,
           '#title' => $title,
           '#cover' => field_view_field('ting_object', $entity, 'ting_cover', 'user_list'),
@@ -566,6 +590,8 @@ function ding_reservation_reservations_form($form, &$form_state, $reservations, 
       case DING_RESERVATION_INTERLIBRARY_LOANS:
         $item = array(
           '#type' => 'material_item',
+          '#creators' => $creator_string,
+          '#material_type' => $mat_type,
           '#id' => $reservation->id,
           '#title' => $title,
           '#cover' => field_view_field('ting_object', $entity, 'ting_cover', 'user_list'),
